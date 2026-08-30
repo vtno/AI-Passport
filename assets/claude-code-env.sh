@@ -14,6 +14,13 @@ set -euo pipefail
 
 MODEL="${1:-${ANTHROPIC_MODEL:-grok-4.6-ant}}"
 
+# Claude Code doesn't know custom gateway model names; tell it the real
+# context window so auto-compact uses it (instead of assuming 200k).
+case "$MODEL" in
+  grok-4.6*) export CLAUDE_CODE_MAX_CONTEXT_TOKENS="${CLAUDE_CODE_MAX_CONTEXT_TOKENS:-500000}" ;;
+  qwen3.8-27b*) export CLAUDE_CODE_MAX_CONTEXT_TOKENS="${CLAUDE_CODE_MAX_CONTEXT_TOKENS:-262144}" ;;
+esac
+
 export ANTHROPIC_BASE_URL="${LITELLM_BASE_URL}"
 export ANTHROPIC_AUTH_TOKEN="${LITELLM_API_KEY}"
 export ANTHROPIC_MODEL="$MODEL"
