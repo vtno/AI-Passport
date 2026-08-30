@@ -4,7 +4,7 @@ Preconfigured LiteLLM gateway for multiple subscription providers
 (SuperGrok today, ChatGPT later, …) so any harness (Claude Code, OpenCode, curl)
 can reach them through one router.
 
-Codename "AI Passport" is a pun on the Thai government "TH AI Passport" meme.
+> Codename "AI Passport" is a pun on the Thai government "TH AI Passport" meme.
 
 ## Two run modes
 
