@@ -55,7 +55,15 @@ fi
 [ -n "$BASE" ] || BASE="http://localhost:4000"
 
 export LITELLM_BASE_URL="$BASE" LITELLM_API_KEY="$KEY"
-command -v claude >/dev/null || die "claude CLI not found on PATH"
+
+# Resolve the real claude CLI, skipping this script (the repo dir may be on
+# PATH, in which case `claude` would find itself and recurse).
+SELF="$(realpath "$0")"
+CLAUDE_BIN=""
+while IFS= read -r p; do
+  [ "$(realpath "$p" 2>/dev/null)" != "$SELF" ] && { CLAUDE_BIN="$p"; break; }
+done < <(type -aP claude 2>/dev/null || true)
+[ -n "$CLAUDE_BIN" ] || die "claude CLI not found on PATH (install: npm i -g @anthropic-ai/claude-code)"
 
 source "$HERE/assets/claude-code-env.sh" "$MODEL"
-exec claude "$@"
+exec "$CLAUDE_BIN" "$@"
