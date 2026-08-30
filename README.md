@@ -52,26 +52,22 @@ docker compose exec litellm litellm xai-oauth login
 
 ## Claude Code
 
-Launcher (first arg selects the model, default `grok-4.6-ant`):
+One-liner (no clone, no env vars — prompts for anything missing, like Qwenchana):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vtno/AI-Passport/main/run.sh | bash -s -- claude
+curl -fsSL https://raw.githubusercontent.com/vtno/AI-Passport/main/run.sh | bash -s -- claude qwen3.8-27b-ant
+```
+
+Or clone and use the launcher (first arg selects the model, default `grok-4.6-ant`):
 
 ```bash
 ./claude [model_name] [claude args...]
 ```
 
-One-liner (no clone needed; `LITELLM_API_KEY` from your `.env`):
-
-```bash
-LITELLM_BASE_URL=http://localhost:4000 LITELLM_API_KEY=$LITELLM_API_KEY \
-bash -c 'source <(curl -sL https://raw.githubusercontent.com/vtno/AI-Passport/main/assets/claude-code-env.sh grok-4.6-ant) && claude'
-```
-
-Or clone and source directly (same as Qwenchana):
-
-```bash
-source assets/claude-code-env.sh [model] && claude
-```
-
-Requires `LITELLM_BASE_URL` + `LITELLM_API_KEY` in the environment.
+Credentials resolve in order: `LITELLM_BASE_URL` / `LITELLM_API_KEY` env → this
+repo's `.env` (`LITELLM_MASTER_KEY`) → interactive prompt (optionally saved to
+your shell profile).
 
 ## Files
 

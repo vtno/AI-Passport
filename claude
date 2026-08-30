@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # Start Claude Code against the AI Passport gateway with a given model.
 # Usage:
-#   ./claude                        # default: grok-4.6-ant
-#   ./claude <model_name>           # any gateway model (qwen3.8-27b-ant, …)
+#   ./claude                        # default model: grok-4.6-ant
+#   ./claude <model_name> [claude args...]
 #   ./claude -h                     # this help
-# Claude args pass through after the model (./claude grok-4.6-ant --resume).
 #
-# Key resolution: $LITELLM_API_KEY -> this repo's .env (LITELLM_MASTER_KEY).
-# Gateway: $LITELLM_BASE_URL (default http://localhost:4000; 4001 for standalone).
+# Credentials: LITELLM_BASE_URL / LITELLM_API_KEY from env, else this repo's
+# .env (LITELLM_MASTER_KEY), else interactive prompt (optionally saved to
+# your shell profile). No env vars required up front.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+die() { printf "\033[31mError: %s\033[0m\n" "$1" >&2; exit 1; }
+ok()  { printf "\033[32m    %s\033[0m\n" "$1" >&2; }
+
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   grep '^# ' "$0" | sed 's/^# \{0,1\}//'
   exit 0
@@ -18,12 +21,41 @@ fi
 MODEL="${1:-grok-4.6-ant}"
 [ $# -gt 0 ] && shift
 
-export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://localhost:4000}"
-if [ -z "${LITELLM_API_KEY:-}" ] && [ -f "$HERE/.env" ]; then
-  export LITELLM_API_KEY="$(grep -E '^LITELLM_MASTER_KEY=' "$HERE/.env" | head -1 | cut -d= -f2-)"
+BASE="${LITELLM_BASE_URL:-}"
+KEY="${LITELLM_API_KEY:-}"
+if [ -z "$KEY" ] && [ -f "$HERE/.env" ]; then
+  KEY="$(grep -E '^LITELLM_MASTER_KEY=' "$HERE/.env" | head -1 | cut -d= -f2-)"
 fi
-command -v claude >/dev/null || { echo "claude CLI not found on PATH" >&2; exit 1; }
-[ -n "${LITELLM_API_KEY:-}" ] || { echo "no API key: set LITELLM_API_KEY" >&2; exit 1; }
+
+# Interactive prompt for whatever is missing (fresh box / partial env).
+if { [ -z "$KEY" ] || [ -z "$BASE" ]; } && [ -t 0 ]; then
+  if [ -z "$BASE" ]; then
+    printf "  Gateway URL [http://localhost:4000]: " >&2
+    read -r BASE || true
+  fi
+  BASE="${BASE:-http://localhost:4000}"
+  if [ -z "$KEY" ]; then
+    printf "  LITELLM_API_KEY: " >&2
+    read -r KEY || true
+  fi
+  [ -n "$KEY" ] || die "no API key given (set LITELLM_API_KEY or add LITELLM_MASTER_KEY to .env)"
+  printf "  Save to shell profile so future shells pick it up? [y/N] " >&2
+  read -r yn || true
+  if [[ "${yn:-n}" =~ ^[Yy]$ ]]; then
+    printf "  RC file to append to [~/.bashrc]: " >&2
+    read -r PROFILE || true
+    PROFILE="${PROFILE:-$HOME/.bashrc}"
+    PROFILE="${PROFILE/#\~/$HOME}"
+    printf '\n# AI Passport gateway (added by ./claude)\nexport LITELLM_BASE_URL="%s"\nexport LITELLM_API_KEY="%s"\n' \
+      "$BASE" "$KEY" >> "$PROFILE"
+    ok "Saved to $PROFILE (new shells pick it up automatically)."
+  fi
+fi
+[ -n "$KEY" ]  || die "no API key: set LITELLM_API_KEY or create .env"
+[ -n "$BASE" ] || BASE="http://localhost:4000"
+
+export LITELLM_BASE_URL="$BASE" LITELLM_API_KEY="$KEY"
+command -v claude >/dev/null || die "claude CLI not found on PATH"
 
 source "$HERE/assets/claude-code-env.sh" "$MODEL"
 exec claude "$@"
