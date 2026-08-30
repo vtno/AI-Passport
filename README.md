@@ -55,13 +55,16 @@ docker compose exec litellm litellm xai-oauth login
 One-liner (no clone, no env vars — prompts for anything missing, like Qwenchana):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vtno/AI-Passport/main/run.sh | bash -s -- claude
+# Grok 4.6 via SuperGrok OAuth (the default; explicit here for clarity)
+curl -fsSL https://raw.githubusercontent.com/vtno/AI-Passport/main/run.sh | bash -s -- claude grok-4.6-ant
+# ...or any other gateway model:
 curl -fsSL https://raw.githubusercontent.com/vtno/AI-Passport/main/run.sh | bash -s -- claude qwen3.8-27b-ant
 ```
 
 Or clone and use the launcher (first arg selects the model, default `grok-4.6-ant`):
 
 ```bash
+./claude grok-4.6-ant
 ./claude [model_name] [claude args...]
 ```
 
