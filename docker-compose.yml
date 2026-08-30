@@ -1,0 +1,64 @@
+# Standalone private LiteLLM (port 4001) - alternative to override.
+# Use this if you want to keep qwen-3.8-serving:4000 running untouched
+# and test grok on 4001 with its own db.
+#   docker compose up -d
+#   docker compose exec litellm litellm xai-oauth login
+#
+# For in-place override of the Qwenchana stack (port 4000, shared db), see docker-compose.grok.yml
+name: litellm-private
+services:
+  litellm:
+    image: ghcr.io/berriai/litellm@sha256:aded103a25605460bd6338fee6ba0bdbecfc548a27b59a1710f591c91671b47a
+    container_name: litellm-private
+    env_file:
+      - .env
+    ports:
+      - "4001:4000"
+      - "127.0.0.1:56121:56121"  # xAI OAuth PKCE callback
+    volumes:
+      - ./config.template.yaml:/app/config.template.yaml:ro
+      - ./render_config.py:/app/render_config.py:ro
+      - xai_oauth_data:/root/.config/litellm/xai_oauth
+    entrypoint: ["sh", "-c"]
+    command:
+      - "python3 /app/render_config.py && litellm --config /app/config.yaml --port 4000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qwenchana_default
+      - default
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: litellm-private-redis
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    networks:
+      - default
+
+  db:
+    image: postgres:17.11
+    container_name: litellm-private-db
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: litellm-pg
+      POSTGRES_DB: litellm
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - default
+
+volumes:
+  pgdata:
+  redisdata:
+  xai_oauth_data:
+
+networks:
+  qwenchana_default:
+    external: true

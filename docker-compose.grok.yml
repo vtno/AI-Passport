@@ -1,0 +1,27 @@
+# Grok OAuth override for Qwenchana.
+# Usage (keeps qwen-3.8-serving clean, no commit):
+#   docker compose -f /home/tham/qwen-3.8-serving/docker-compose.yml -f /home/tham/litellm/docker-compose.grok.yml up -d litellm --force-recreate
+# Or from repo root:
+#   docker compose -f docker-compose.yml -f ../litellm/docker-compose.grok.yml up -d litellm
+#
+# This file ONLY overrides the litellm service to:
+#  - mount private config.template.yaml (with grok-4.6 use_xai_oauth: true)
+#  - persist xAI OAuth token to a private Docker volume
+#  - (optional) keep env_file pointing at private .env if you edited LITELLM_MASTER_KEY etc.
+
+name: qwenchana
+services:
+  litellm:
+    env_file:
+      - /home/tham/litellm/.env
+    volumes:
+      - /home/tham/litellm/config.template.yaml:/app/config.template.yaml:ro
+      - /home/tham/litellm/render_config.py:/app/render_config.py:ro
+      - xai_oauth_data:/root/.config/litellm/xai_oauth
+    ports:
+      - "4000:4000"
+      - "127.0.0.1:56121:56121"  # xAI OAuth PKCE callback
+    # needs host access for OAuth loopback display url (no extra port needed)
+
+volumes:
+  xai_oauth_data:

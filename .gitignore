@@ -1,0 +1,5 @@
+.env
+auth.json
+xai_oauth/
+*.db
+__pycache__/
