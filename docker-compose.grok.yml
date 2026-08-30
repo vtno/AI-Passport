@@ -1,27 +1,37 @@
-# Grok OAuth override for Qwenchana.
-# Usage (keeps qwen-3.8-serving clean, no commit):
-#   docker compose -f /home/tham/qwen-3.8-serving/docker-compose.yml -f /home/tham/litellm/docker-compose.grok.yml up -d litellm --force-recreate
-# Or from repo root:
-#   docker compose -f docker-compose.yml -f ../litellm/docker-compose.grok.yml up -d litellm
+# AI Passport — add Grok (and future third-party subscription models) to an
+# existing LiteLLM serving stack, WITHOUT touching the stack's config, env,
+# or renderer.
 #
-# This file ONLY overrides the litellm service to:
-#  - mount private config.template.yaml (with grok-4.6 use_xai_oauth: true)
-#  - persist xAI OAuth token to a private Docker volume
-#  - (optional) keep env_file pointing at private .env if you edited LITELLM_MASTER_KEY etc.
+# The stack keeps its own litellm service definition: its env_file, its
+# config.template.yaml, and its render_config.py all stay the stack's.
+# This override only:
+#   - mounts a Grok-only model addon (grok_addon.yaml) + a tiny merge script
+#     (append_grok.py)
+#   - extends the command to append the Grok models to the stack's rendered
+#     config after the stack renders it
+#   - persists the xAI OAuth token to a Docker volume
+#   - publishes the OAuth PKCE callback port (default 56121; override with
+#     XAI_OAUTH_CALLBACK_PORT)
+#
+# Grok needs NO vLLM and NO env from the stack (the OAuth token lives in the
+# volume, not in any env var).
+#
+# Usage:
+#   Preferred:  ./aipass <stack>/docker-compose.yml
+#   Manual:     AI_PASSPORT_DIR=<this dir> docker compose \
+#                   -f <stack>/docker-compose.yml -f <this dir>/docker-compose.grok.yml \
+#                   up -d litellm --force-recreate
 
-name: qwenchana
 services:
   litellm:
-    env_file:
-      - /home/tham/litellm/.env
     volumes:
-      - /home/tham/litellm/config.template.yaml:/app/config.template.yaml:ro
-      - /home/tham/litellm/render_config.py:/app/render_config.py:ro
+      - ${AI_PASSPORT_DIR:?set AI_PASSPORT_DIR to the AI Passport repo dir}/grok_addon.yaml:/app/grok_addon.yaml:ro
+      - ${AI_PASSPORT_DIR}/append_grok.py:/app/append_grok.py:ro
       - xai_oauth_data:/root/.config/litellm/xai_oauth
+    command:
+      - "python3 /app/render_config.py && python3 /app/append_grok.py && litellm --config /app/config.yaml --port 4000"
     ports:
-      - "4000:4000"
-      - "127.0.0.1:56121:56121"  # xAI OAuth PKCE callback
-    # needs host access for OAuth loopback display url (no extra port needed)
+      - "127.0.0.1:${XAI_OAUTH_CALLBACK_PORT:-56121}:56121"  # xAI OAuth PKCE callback
 
 volumes:
   xai_oauth_data:

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Start Claude Code against the AI Passport gateway (default model: grok-4.6-ant).
+# Usage:
+#   ./claude-grok.sh                    # grok-4.6-ant
+#   ./claude-grok.sh qwen3.8-27b-ant    # any gateway model
+#   ./claude-grok.sh -h                 # this help
+# Claude args pass through after the model (./claude-grok.sh grok-4.6-ant --resume).
+#
+# Key resolution: $LITELLM_API_KEY -> this repo's .env (LITELLM_MASTER_KEY).
+# Gateway: $LITELLM_BASE_URL (default http://localhost:4000; 4001 for standalone).
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  grep '^# ' "$0" | sed 's/^# \{0,1\}//'
+  exit 0
+fi
+MODEL="${1:-grok-4.6-ant}"
+[ $# -gt 0 ] && shift
+
+export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://localhost:4000}"
+if [ -z "${LITELLM_API_KEY:-}" ] && [ -f "$HERE/.env" ]; then
+  export LITELLM_API_KEY="$(grep -E '^LITELLM_MASTER_KEY=' "$HERE/.env" | head -1 | cut -d= -f2-)"
+fi
+command -v claude >/dev/null || { echo "claude CLI not found on PATH" >&2; exit 1; }
+[ -n "${LITELLM_API_KEY:-}" ] || { echo "no API key: set LITELLM_API_KEY" >&2; exit 1; }
+
+source "$HERE/assets/claude-code-env.sh" "$MODEL"
+exec claude "$@"

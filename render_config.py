@@ -69,14 +69,26 @@ rendered = re.sub(
     template,
 )
 
-alias_block = "\n".join(
-    "  - model_name: " + name + "\n"
-    "    litellm_params:\n"
-    "      model: anthropic/" + os.environ.get("VLLM_MODEL_ID", "") + "\n"
-    "      api_base: " + os.environ.get("VLLM_ANTHROPIC_BASE_URL", "") + "\n"
-    "      api_key: " + os.environ.get("VLLM_API_KEY", "") + "\n"
-    for name in CLAUDE_ALIAS_MODELS
-)
+# Claude-class alias target is provider-agnostic: each compose mode sets
+# CLAUDE_ALIAS_MODEL (+ optional CLAUDE_ALIAS_USE_OAUTH / CLAUDE_ALIAS_API_BASE /
+# CLAUDE_ALIAS_API_KEY). Unset -> no aliases are rendered.
+alias_model = os.environ.get("CLAUDE_ALIAS_MODEL", "").strip()
+if alias_model:
+    extra = []
+    if os.environ.get("CLAUDE_ALIAS_USE_OAUTH") == "1":
+        extra.append("      use_xai_oauth: true")
+    if os.environ.get("CLAUDE_ALIAS_API_BASE"):
+        extra.append("      api_base: " + os.environ["CLAUDE_ALIAS_API_BASE"])
+    if os.environ.get("CLAUDE_ALIAS_API_KEY"):
+        extra.append("      api_key: " + os.environ["CLAUDE_ALIAS_API_KEY"])
+    alias_block = "\n".join(
+        "  - model_name: " + name + "\n"
+        "    litellm_params:\n"
+        "      model: " + alias_model + "\n" + "\n".join(extra) + "\n"
+        for name in CLAUDE_ALIAS_MODELS
+    )
+else:
+    alias_block = ""
 rendered = rendered.replace("CLAUDE_ALIAS_DEPLOYMENTS", alias_block.rstrip("\n"))
 
 Path("/app/config.yaml").write_text(rendered)

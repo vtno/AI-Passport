@@ -1,0 +1,41 @@
+model_list:
+- model_name: grok-4.6
+  litellm_params:
+    model: xai/grok-4.6
+    use_xai_oauth: true
+    # default is high per xAI docs; reasoning_effort can be overridden per-request
+
+- model_name: grok-4.6-low
+  litellm_params:
+    model: xai/grok-4.6
+    use_xai_oauth: true
+    reasoning_effort: low
+
+- model_name: grok-4.6-medium
+  litellm_params:
+    model: xai/grok-4.6
+    use_xai_oauth: true
+    reasoning_effort: medium
+
+- model_name: grok-4.6-high
+  litellm_params:
+    model: xai/grok-4.6
+    use_xai_oauth: true
+    reasoning_effort: high
+
+- model_name: grok-4.6-xhigh
+  litellm_params:
+    model: xai/grok-4.6
+    use_xai_oauth: true
+    reasoning_effort: xhigh
+
+# Anthropic Messages passthrough for Claude Code (synthetic).
+# LiteLLM translates /v1/messages -> OpenAI chat + injects reasoning_effort.
+- model_name: grok-4.6-ant
+  litellm_params:
+    model: xai/grok-4.6
+    use_xai_oauth: true
+  model_info:
+    supports_output_config: true
+    supports_low_reasoning_effort: true
+    supports_xhigh_reasoning_effort: true

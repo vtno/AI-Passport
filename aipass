@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# AI Passport — run the extension of an existing serving stack (default: Qwenchana).
+# Resolves this repo's path automatically (no hardcoded paths, no env vars to remember).
+#
+# Usage:
+#   ./aipass                                        # up (default; ../Qwenchana/docker-compose.yml)
+#   ./aipass <stack>/docker-compose.yml up
+#   ./aipass <stack>/docker-compose.yml down
+#   ./aipass <stack>/docker-compose.yml logs
+#   ./aipass <stack>/docker-compose.yml config
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+QWEN="${1:-$HERE/../Qwenchana/docker-compose.yml}"
+ACTION="${2:-up}"
+
+# Resolve a relative stack path: try cwd first, then relative to this repo.
+if [[ "$QWEN" != /* && ! -f "$QWEN" && -f "$HERE/$QWEN" ]]; then
+  QWEN="$HERE/$QWEN"
+elif [[ "$QWEN" != /* ]]; then
+  QWEN="$(cd "$(dirname "$QWEN")" && pwd)/$(basename "$QWEN")"
+fi
+
+export AI_PASSPORT_DIR="$HERE"
+DC=(docker compose -f "$QWEN" -f "$HERE/docker-compose.grok.yml")
+
+case "$ACTION" in
+  up)     "${DC[@]}" up -d litellm --force-recreate ;;
+  down)   "${DC[@]}" down litellm ;;
+  logs)   "${DC[@]}" logs -f litellm ;;
+  config) "${DC[@]}" config ;;
+  *)      "${DC[@]}" "$ACTION" "$@" ;;
+esac

@@ -1,10 +1,12 @@
-# Standalone private LiteLLM (port 4001) - alternative to override.
-# Use this if you want to keep qwen-3.8-serving:4000 running untouched
-# and test grok on 4001 with its own db.
+# AI Passport standalone base (port 4001, own db/redis).
+# Ships a working gateway with subscription models only (Grok today; more
+# third-party providers later) - no serving stack required.
 #   docker compose up -d
 #   docker compose exec litellm litellm xai-oauth login
 #
-# For in-place override of the Qwenchana stack (port 4000, shared db), see docker-compose.grok.yml
+# To extend an existing serving stack instead (shared db, stack's port), use:
+#   ./aipass <stack>/docker-compose.yml
+# (uses docker-compose.grok.yml; additive - the stack's config/env stay the stack's)
 name: litellm-private
 services:
   litellm:
@@ -12,6 +14,10 @@ services:
     container_name: litellm-private
     env_file:
       - .env
+    # Claude-class models (claude-sonnet-*/haiku-*/…) route to Grok.
+    environment:
+      CLAUDE_ALIAS_MODEL: xai/grok-4.6
+      CLAUDE_ALIAS_USE_OAUTH: "1"
     ports:
       - "4001:4000"
       - "127.0.0.1:56121:56121"  # xAI OAuth PKCE callback
@@ -25,7 +31,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
-      - qwenchana_default
       - default
     depends_on:
       - db
@@ -58,7 +63,3 @@ volumes:
   pgdata:
   redisdata:
   xai_oauth_data:
-
-networks:
-  qwenchana_default:
-    external: true

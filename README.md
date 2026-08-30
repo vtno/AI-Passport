@@ -1,74 +1,83 @@
-# litellm-private
+# AI Passport
 
-Private LiteLLM gateway isolated from `qwen-3.8-serving` so the open-source Qwenchana repo never leaks Grok/SuperGrok OAuth config or tokens.
+Preconfigured LiteLLM gateway for multiple subscription providers
+(SuperGrok today, ChatGPT later, …) so any harness (Claude Code, OpenCode, curl)
+can reach them through one router.
 
-Original `qwen-3.8-serving/litellm/` stays clean (`git diff` empty). All Grok config + `xai_oauth` token lives here in `/home/tham/litellm` + Docker volume.
-
-## Files
-
-- `config.template.yaml` — copy of Qwenchana template + 3 Grok models with `use_xai_oauth: true` (`litellm/llms/xai/oauth.py:53` / `litellm/llms/xai/chat/transformation.py:32`)
-- `render_config.py` — same renderer as upstream (`qwen-3.8-serving/litellm/render_config.py:1`)
-- `.env` / `.env.example` — private env (master key, `XAI_API_KEY` optional, `XAI_OAUTH_*`)
-- `docker-compose.grok.yml` — **recommended**: override for Qwenchana stack (same `qwenchana` network/db, port 4000)
-- `docker-compose.yml` — standalone `litellm-private:4001` with own db/redis (for testing without touching Qwenchana)
-- `.gitignore` — ignores `.env`, `auth.json`, `xai_oauth/`
+Codename "AI Passport" is a pun on the Thai government "TH AI Passport" meme.
 
 ## Two run modes
 
-### A) Override Qwenchana's litellm in-place (shared DB, port 4000) — recommended
+### A) Extend an existing serving stack (e.g. Qwenchana) — recommended
+
+**Additive**: the stack keeps its own `litellm` service definition — its env,
+config template and renderer are untouched. The override only appends the
+Grok models to the stack's rendered config (via `append_grok.py`), adds the
+OAuth token volume + callback port. Grok needs no env vars and no vLLM.
+The stack's own `litellm/` stays pristine (`git diff` empty).
 
 ```bash
-# Keeps vllm + db + redis from qwen-3.8-serving, only swaps litellm config + adds oauth volume
-docker compose -f /home/tham/qwen-3.8-serving/docker-compose.yml \
-               -f /home/tham/litellm/docker-compose.grok.yml \
-               up -d litellm --force-recreate
-
-# One-time OAuth PKCE login (SuperGrok subscription):
-docker exec -it litellm litellm xai-oauth login
-# -> prints https://auth.x.ai/... -> sign in with X -> callback http://127.0.0.1:56121/callback
-# -> writes /root/.config/litellm/xai_oauth/auth.json into volume `qwenchana_xai_oauth_data`
-
-# Verify merged config:
-docker compose -f /home/tham/qwen-3.8-serving/docker-compose.yml \
-               -f /home/tham/litellm/docker-compose.grok.yml \
-               config | grep -A2 "grok-4.6"
-
-# Test
-curl http://localhost:4000/v1/chat/completions \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  -d '{"model":"grok-4.6","messages":[{"role":"user","content":"hi"}]}'
-
-curl http://localhost:4000/v1/chat/completions \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  -d '{"model":"qwen3.8-27b","messages":[{"role":"user","content":"hi"}]}'
-
-# Isolation check (should be empty):
-git -C /home/tham/qwen-3.8-serving diff -- litellm/
+./aipass                       # uses ../Qwenchana/docker-compose.yml by default
+./aipass /path/to/stack/docker-compose.yml up   # any other compose stack
 ```
 
-Token refresh is automatic (`oauth.py:74` `_refresh_tokens` with `threading.Lock`), `expires_at` skew 120s.
-
-### B) Standalone on 4001 (own db, no touch to Qwenchana)
+One-time OAuth PKCE login (SuperGrok subscription):
 
 ```bash
-cd /home/tham/litellm
+docker exec -it litellm litellm xai-oauth login
+# -> sign in at https://auth.x.ai/... -> callback http://127.0.0.1:56121/callback
+```
+
+Verify (Grok models appear alongside the stack's models):
+
+```bash
+curl -s http://localhost:4000/v1/models -H "Authorization: Bearer $LITELLM_MASTER_KEY"
+```
+
+### B) Standalone base (own db/redis, port 4001)
+
+A working gateway with subscription models only — no serving stack required:
+
+```bash
 docker compose up -d
 docker compose exec litellm litellm xai-oauth login
-curl http://localhost:4001/v1/chat/completions \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  -d '{"model":"grok-4.6","messages":[{"role":"user","content":"hi"}]}'
-# Shares qwen vLLM via external network `qwenchana_default` -> http://vllm:8000/v1
 ```
 
-## Model list
+## Models
 
-- `qwen3.8-27b`, `-low/-mid/-high/-xhigh`, `-ant` (Anthropic passthrough to `qwen38-vllm`)
-- `grok-4.6`, `grok-4`, `grok-4-fast` (all `xai/*` + `use_xai_oauth: true`)
-- Optional `grok-4.6-key` (uncomment, set `XAI_API_KEY` from `console.x.ai`)
+- Grok (both modes): `grok-4.6` (effort high), `grok-4.6-low` / `-medium` /
+  `-high` / `-xhigh`, `grok-4.6-ant` (Claude Code, Anthropic Messages → OpenAI)
+- Mode A: the stack's own models (e.g. Qwenchana's `qwen3.8-27b*`) are served
+  unchanged by the stack's config.
+
+## Claude Code
+
+First arg selects the model (default `grok-4.6-ant`):
+
+```bash
+source assets/claude-code-env.sh [model] && claude
+```
+
+Requires `LITELLM_BASE_URL` + `LITELLM_API_KEY` in the environment.
+
+## Files
+
+- `config.template.yaml` — standalone gateway config (Grok only, mode B)
+- `grok_addon.yaml` — Grok model entries appended by mode A
+- `append_grok.py` — merges `grok_addon.yaml` into the stack's rendered config
+- `render_config.py` — renders the standalone config + Claude-class aliases
+  (target via `CLAUDE_ALIAS_*` env vars; `xai/grok-4.6` in mode B)
+- `.env` / `.env.example` — private env (master key; mode B only)
+- `docker-compose.grok.yml` — additive extension override (mode A)
+- `docker-compose.yml` — standalone base (mode B, port 4001)
+- `aipass` — path-free runner for mode A
+- `assets/claude-code-env.sh` — Claude Code env wrapper
+- `.gitignore` — ignores `.env`, `auth.json`, `xai_oauth/`
 
 ## Notes
 
-- ChatGPT OAuth (`litellm/llms/chatgpt/authenticator.py:1`, `docs.litellm.ai/docs/providers/chatgpt`) is the reference impl; `xai_oauth` mirrors it with `XAI_OAUTH_ISSUER=https://auth.x.ai`, `CLIENT_ID=b1a00492-...`, `scope=... grok-cli:access`.
-- SuperGrok has no API key; OAuth token is `Bearer` for `https://api.x.ai/v1` (`litellm/constants.py:XAI_API_BASE`).
-- Token stored at `~/.config/litellm/xai_oauth/auth.json` (0600) inside volume, never in repo.
-
+- SuperGrok has no API key; the OAuth token is sent as `Bearer` to `https://api.x.ai/v1`.
+- Token stored at `/root/.config/litellm/xai_oauth/auth.json` (0600) inside the
+  `xai_oauth_data` volume, never in the repo. Refresh is automatic.
+- `xai_oauth` mirrors LiteLLM's ChatGPT OAuth implementation
+  (`litellm/llms/chatgpt/authenticator.py`, docs.litellm.ai/docs/providers/chatgpt).
