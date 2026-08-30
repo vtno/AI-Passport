@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Start Claude Code against the AI Passport gateway (default model: grok-4.6-ant).
+# Start Claude Code against the AI Passport gateway with a given model.
 # Usage:
-#   ./claude-grok.sh                    # grok-4.6-ant
-#   ./claude-grok.sh qwen3.8-27b-ant    # any gateway model
-#   ./claude-grok.sh -h                 # this help
-# Claude args pass through after the model (./claude-grok.sh grok-4.6-ant --resume).
+#   ./claude                        # default: grok-4.6-ant
+#   ./claude <model_name>           # any gateway model (qwen3.8-27b-ant, …)
+#   ./claude -h                     # this help
+# Claude args pass through after the model (./claude grok-4.6-ant --resume).
 #
 # Key resolution: $LITELLM_API_KEY -> this repo's .env (LITELLM_MASTER_KEY).
 # Gateway: $LITELLM_BASE_URL (default http://localhost:4000; 4001 for standalone).
